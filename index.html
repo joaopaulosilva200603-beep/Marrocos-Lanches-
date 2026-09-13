@@ -1251,7 +1251,7 @@
         </div>
     </div>
     </dov>
-    <script>
+        <script>
         const firebaseConfig = {
             apiKey: "AIzaSyAbYlLMcr-1hUPL60oKBzT5af2SMOJ2-uw",
             authDomain: "marrocos-lanches.firebaseapp.com",
@@ -1279,6 +1279,11 @@
             "Alface": 2.00, "Coração": 7.00, "Salsicha": 3.00
         };
 
+        const produtosIniciaisPadrao = [
+            { categoria: "Lanches & Xis", nome: "Xis da Casa", desc: "Pão, Bife, Ovo, Presunto, Queijo, Milho, Ervilha, Tomate e Alface", precoG: 27.00, precoM: 22.00, img: "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=400&q=80", pausado: false },
+            { categoria: "Lanches & Xis", nome: "Xis da Casa C/ Dog", desc: "Pão, Bife, Salsicha, Ovo, Presunto, Queijo, Batata Palha, Tomate e Alface", precoG: 30.00, precoM: 26.00, img: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=400&q=80", pausado: false }
+        ];
+
         window.addEventListener('DOMContentLoaded', () => {
             if (!db) return;
 
@@ -1294,23 +1299,85 @@
             });
 
             db.ref('produtos').on('value', (snapshot) => {
-                let extrasAntigos = document.querySelectorAll('.produto-nuvem');
-                extrasAntigos.forEach(e => e.remove());
+                let container = document.getElementById('app');
+                let categoriasAntigas = container.querySelectorAll('.categoria-bloco');
+                categoriasAntigas.forEach(e => e.remove());
 
-                if (snapshot.exists()) {
-                    snapshot.forEach((childSnapshot) => {
-                        let idKey = childSnapshot.key;
-                        let p = childSnapshot.val();
-                        renderizarCardNaTela(idKey, p.nome, p.desc, p.precoG, p.precoM, p.img, p.pausado || false, p.categoria || "Lanches & Xis");
+                if (!snapshot.exists()) {
+                    let produtosRef = db.ref('produtos');
+                    produtosIniciaisPadrao.forEach(p => produtosRef.push(p));
+                    return;
+                }
+
+                let produtosPorCategoria = {};
+
+                snapshot.forEach((childSnapshot) => {
+                    let idKey = childSnapshot.key;
+                    let p = childSnapshot.val();
+                    let cat = p.categoria || "Lanches & Xis";
+
+                    if (!produtosPorCategoria[cat]) produtosPorCategoria[cat] = [];
+                    produtosPorCategoria[cat].push({ idKey, ...p });
+                });
+
+                for (let cat in produtosPorCategoria) {
+                    let catId = "cat_" + cat.replace(/[^a-zA-Z0-9]/g, '_');
+                    let catDiv = document.createElement('div');
+                    catDiv.className = 'categoria-bloco';
+                    catDiv.id = catId;
+                    
+                    let htmlCat = `<div class="category-title" style="margin-top:25px;">${cat}</div>`;
+                    
+                    produtosPorCategoria[cat].forEach(p => {
+                        let classePausado = p.pausado ? ' indisponivel' : '';
+                        let ingredientesArray = p.desc ? p.desc.split(',').map(i => i.trim()) : ["Bife", "Queijo"];
+                        let ingredientesStr = JSON.stringify(ingredientesArray).replace(/"/g, '&quot;');
+                        
+                        let botoesAcao = `<button class="btn-totem" onclick="abrirTotemLanche('${p.nome}', ${p.precoG}, ${ingredientesStr}, '${p.img}')">🛠️ Pedir (R$ ${p.precoG.toFixed(2).replace('.', ',')})</button>`;
+                        if(p.precoM && p.precoM > 0) {
+                            botoesAcao = `
+                                <button class="btn-totem" onclick="abrirTotemLanche('${p.nome} (Grande)', ${p.precoG}, ${ingredientesStr}, '${p.img}')">🛠️ Grande (R$ ${p.precoG.toFixed(2).replace('.', ',')})</button>
+                                <button class="btn-totem" onclick="abrirTotemLanche('${p.nome} (Mini)', ${p.precoM}, ${ingredientesStr}, '${p.img}')">🛠️ Mini (R$ ${p.precoM.toFixed(2).replace('.', ',')})</button>
+                            `;
+                        }
+
+                        let precoTexto = (p.precoM && p.precoM > 0) ? `Grande: R$ ${p.precoG.toFixed(2)} | Mini: R$ ${p.precoM.toFixed(2)}` : `Valor: R$ ${p.precoG.toFixed(2)}`;
+
+                        let controlesAdminHTML = "";
+                        if (document.body.classList.contains('modo-lojista-ativo')) {
+                            controlesAdminHTML = `
+                                <div class="admin-controls" style="display:flex;">
+                                    <button class="btn-admin" onclick="alterarFotoCard(this)">🖼️ Foto</button>
+                                    <button class="btn-admin" onclick="alterarDadosCard(this)">✏️ Editar Preços</button>
+                                    <button class="btn-admin" onclick="alternarPausaCard(this)" style="background:#b45309;">🚫 Pausar</button>
+                                    <button class="btn-admin" onclick="excluirProdutoCard(this)" style="background:#dc2626;">🗑️ Excluir</button>
+                                </div>
+                            `;
+                        }
+
+                        htmlCat += `
+                            <div class="totem-card${classePausado}" data-firebase-id="${p.idKey}">
+                                <img src="${p.img}" class="totem-img" alt="${p.nome}">
+                                <div class="totem-content">
+                                    <div class="totem-info">
+                                        <h3>${p.nome}</h3>
+                                        <p>${p.desc}</p>
+                                        <div class="totem-preco">${precoTexto}</div>
+                                    </div>
+                                    <div class="totem-actions">
+                                        ${botoesAcao}
+                                    </div>
+                                    ${controlesAdminHTML}
+                                </div>
+                            </div>
+                        `;
                     });
+
+                    catDiv.innerHTML = htmlCat;
+                    containerPrincipal.appendChild(catDiv);
                 }
             });
-
-            if (document.body.classList.contains('modo-lojista-ativo')) {
-                injetarControlesEdicao();
-            }
         });
-
         function abrirTotemLanche(nome, preco, ingredientes, img) {
             lancheAtual = { 
                 nome, 
@@ -1480,7 +1547,6 @@
             let urlWp = `https://api.whatsapp.com/send?phone=${foneLoja}&text=` + encodeURIComponent(mensagem);
             window.open(urlWp, '_blank');
         }
-
         function tentarAtivarModoLojista() {
             let btn = document.getElementById('btnModoLojista');
             if(document.body.classList.contains('modo-lojista-ativo')) {
@@ -1514,114 +1580,61 @@
                 }
                 fecharModalSenha();
                 senhaInput.value = "";
-                injetarControlesEdicao(); 
+                location.reload(); 
             } else {
                 alert("Senha incorreta!");
             }
         }
 
-        function injetarControlesEdicao() {
-            let cards = document.querySelectorAll('.totem-card');
-            cards.forEach(card => {
-                let content = card.querySelector('.totem-content');
-                if (content && !card.querySelector('.admin-controls')) {
-                    let divAdmin = document.createElement('div');
-                    divAdmin.className = 'admin-controls';
-                    divAdmin.innerHTML = `
-                        <button class="btn-admin" onclick="alterarFotoCard(this)">🖼️ Foto</button>
-                        <button class="btn-admin" onclick="alterarDadosCard(this)">✏️ Editar Preço/Nome</button>
-                        <button class="btn-admin" onclick="alternarPausaCard(this)" style="background:#b45309;">🚫 Pausar</button>
-                        <button class="btn-admin" onclick="excluirProdutoCard(this)" style="background:#dc2626;">🗑️ Excluir</button>
-                    `;
-                    content.appendChild(divAdmin);
-                }
-            });
-        }
-
-        function alternarPausaCard(btn) {
+        function alterarFotoCard(btn) {
             let card = btn.closest('.totem-card');
             let idKey = card.getAttribute('data-firebase-id');
-            
-            // Alterna a classe visual na tela imediatamente
-            card.classList.toggle('indisponivel');
-            let estahPausado = card.classList.contains('indisponivel');
-            
-            if (idKey && db) {
-                // Salva explicitamente true ou false booleano no Firebase
-                db.ref('produtos/' + idKey).update({ pausado: Boolean(estahPausado) }).then(() => {
-                    console.log("Status de pausa atualizado na nuvem:", estahPausado);
-                });
-            } else {
-                alert("Este produto é do cardápio padrão fixo. Para pausar produtos permanentemente na nuvem, cadastre-os pelo painel de novo produto.");
+            let imgEl = card.querySelector('.totem-img');
+            let novaUrl = prompt("Cole o Link da nova foto:", imgEl.src);
+            if (novaUrl && idKey && db) {
+                db.ref('produtos/' + idKey).update({ img: novaUrl }).then(() => alert("Foto atualizada na nuvem!"));
             }
         }
 
         function alterarDadosCard(btn) {
             let card = btn.closest('.totem-card');
             let idKey = card.getAttribute('data-firebase-id');
-            let tituloEl = card.querySelector('h3');
-            let descEl = card.querySelector('p');
-            let precoEl = card.querySelector('.totem-preco');
+            
+            let novoTitulo = prompt("Novo Nome do Produto:");
+            let novaDesc = prompt("Nova Descrição / Ingredientes:");
+            let novoPrecoG = prompt("Novo Preço GRANDE (ou único) - Apenas números ex: 30.00:");
+            let novoPrecoM = prompt("Novo Preço MINI (Deixe em branco se não tiver):", "");
 
-            let novoTitulo = prompt("Novo Nome do Produto:", tituloEl ? tituloEl.innerText : "");
-            let novaDesc = prompt("Nova Descrição / Ingredientes:", descEl ? descEl.innerText : "");
-            let novoPrecoG = prompt("Novo Preço Grande (ou Preço Único) - Apenas número ex: 30.00:", "");
-            let novoPrecoM = prompt("Novo Preço Mini (Deixe em branco se não tiver):", "");
+            if (!idKey || !db) return;
 
-            if (novoTitulo && tituloEl) tituloEl.innerText = novoTitulo;
-            if (novaDesc !== null && descEl) descEl.innerText = novaDesc;
+            let dadosUpdate = {};
+            if (novoTitulo && novoTitulo.trim() !== "") dadosUpdate.nome = novoTitulo.trim();
+            if (novaDesc !== null && novaDesc.trim() !== "") dadosUpdate.desc = novaDesc.trim();
             
             let valG = parseFloat(novoPrecoG);
             let valM = parseFloat(novoPrecoM);
 
-            let dadosUpdate = {};
-            if (novoTitulo) dadosUpdate.nome = tituloEl ? tituloEl.innerText : novoTitulo;
-            if (novaDesc !== null) dadosUpdate.desc = descEl ? descEl.innerText : novaDesc;
-
-            let precoTextoExibicao = "";
-            if (!isNaN(valG)) {
-                dadosUpdate.precoG = valG;
-                precoTextoExibicao = `Valor: R$ ${valG.toFixed(2)}`;
-            }
+            if (!isNaN(valG)) dadosUpdate.precoG = valG;
             if (!isNaN(valM) && valM > 0) {
                 dadosUpdate.precoM = valM;
-                precoTextoExibicao = `Grande: R$ ${valG.toFixed(2)} | Mini: R$ ${valM.toFixed(2)}`;
-            } else if (!isNaN(valG)) {
+            } else {
                 dadosUpdate.precoM = 0;
             }
 
-            if (precoEl && precoTextoExibicao) {
-                precoEl.innerText = precoTextoExibicao;
-            }
+            db.ref('produtos/' + idKey).update(dadosUpdate).then(() => {
+                alert("Preços e dados atualizados na nuvem com sucesso!");
+            });
+        }
 
-            // Atualiza os botões de ação do card para refletirem os novos valores no clique
-            let actionsDiv = card.querySelector('.totem-actions');
-            if (actionsDiv && !isNaN(valG)) {
-                let ingredientesArray = (descEl ? descEl.innerText : "").split(',').map(i => i.trim());
-                let ingredientesStr = JSON.stringify(ingredientesArray).replace(/"/g, '&quot;');
-                let nomeProdAtual = tituloEl ? tituloEl.innerText : novoTitulo;
-                let imgEl = card.querySelector('.totem-img');
-                let imgUrl = imgEl ? imgEl.src : "";
-
-                if (!isNaN(valM) && valM > 0) {
-                    actionsDiv.innerHTML = `
-                        <button class="btn-totem" onclick="abrirTotemLanche('${nomeProdAtual} (Grande)', ${valG}, ${ingredientesStr}, '${imgUrl}')">🛠️ Grande (R$ ${valG.toFixed(2).replace('.', ',')})</button>
-                        <button class="btn-totem" onclick="abrirTotemLanche('${nomeProdAtual} (Mini)', ${valM}, ${ingredientesStr}, '${imgUrl}')">🛠️ Mini (R$ ${valM.toFixed(2).replace('.', ',')})</button>
-                    `;
-                } else {
-                    actionsDiv.innerHTML = `
-                        <button class="btn-totem" onclick="abrirTotemLanche('${nomeProdAtual}', ${valG}, ${ingredientesStr}, '${imgUrl}')">🛠️ Pedir (R$ ${valG.toFixed(2).replace('.', ',')})</button>
-                    `;
-                }
-            }
-
-            // Salva na nuvem no Firebase
+        function alternarPausaCard(btn) {
+            let card = btn.closest('.totem-card');
+            let idKey = card.getAttribute('data-firebase-id');
+            let estahPausado = card.classList.contains('indisponivel');
+            
             if (idKey && db) {
-                db.ref('produtos/' + idKey).update(dadosUpdate).then(() => {
-                    alert("Preço e dados atualizados e salvos na nuvem com sucesso!");
+                db.ref('produtos/' + idKey).update({ pausado: !estahPausado }).then(() => {
+                    alert(!estahPausado ? "Produto pausado (esgotado) na nuvem!" : "Produto reativado!");
                 });
-            } else {
-                alert("Alteração aplicada na tela! (Para salvar na nuvem permanentemente, edite produtos cadastrados pelo painel).");
             }
         }
 
@@ -1629,15 +1642,12 @@
             let card = btn.closest('.totem-card');
             let idKey = card.getAttribute('data-firebase-id');
             
-            if (confirm("Tem certeza que deseja excluir este produto?")) {
+            if (confirm("Tem certeza que deseja excluir este produto do cardápio?")) {
                 if (idKey && db) {
                     db.ref('produtos/' + idKey).remove().then(() => {
                         card.remove();
                         alert("Produto excluído do banco de dados!");
                     });
-                } else {
-                    card.remove();
-                    alert("Produto removido da tela!");
                 }
             }
         }
@@ -1647,6 +1657,7 @@
             if(novaTaxa !== null && !isNaN(parseFloat(novaTaxa))) {
                 taxaTele = parseFloat(novaTaxa);
                 if (db) db.ref('config/taxaTele').set(taxaTele);
+                alert("Taxa de tele atualizada!");
             }
         }
 
@@ -1681,7 +1692,7 @@
             if (!isNaN(novoValor)) {
                 precosAdicionais[ingrediente] = novoValor;
                 if (db) db.ref('config/precosAdicionais').set(precosAdicionais);
-                alert(`Preço de "${ingrediente}" atualizado na nuvem!`);
+                alert(`Preço de "${ingrediente}" atualizado!`);
             }
         }
 
@@ -1699,7 +1710,7 @@
             document.getElementById('novoAdcNome').value = "";
             document.getElementById('novoAdcPreco').value = "";
             renderizarListaAdicionaisModal();
-            alert(`Adicional "${nome}" salvo na nuvem!`);
+            alert(`Adicional "${nome}" salvo!`);
         }
 
         function abrirModalNovoProduto() {
@@ -1742,74 +1753,14 @@
                 db.ref('produtos').push({
                     categoria, nome, desc, precoG, precoM, img, pausado: false
                 });
-                alert("Produto cadastrado na categoria '" + categoria + "' com sucesso!");
+                alert("Produto cadastrado com sucesso!");
                 fecharModalNovoProduto();
                 document.getElementById('novoProdNome').value = "";
                 document.getElementById('novoProdDesc').value = "";
                 document.getElementById('novoProdPrecoGrande').value = "";
                 document.getElementById('novoProdPrecoMini').value = "";
                 document.getElementById('novoProdImg').value = "";
-            } else {
-                alert("Erro: Banco de dados não conectado.");
             }
-        }
-
-        function renderizarCardNaTela(idKey, nome, desc, precoG, precoM, img, pausado, categoria) {
-            let containerPrincipal = document.getElementById('app');
-            let catId = "cat_" + categoria.replace(/[^a-zA-Z0-9]/g, '_');
-            let catDiv = document.getElementById(catId);
-
-            if (!catDiv) {
-                catDiv = document.createElement('div');
-                catDiv.id = catId;
-                catDiv.innerHTML = `<div class="category-title" style="margin-top:25px;">${categoria}</div>`;
-                containerPrincipal.appendChild(catDiv);
-            }
-
-            let novoCard = document.createElement('div');
-            novoCard.className = 'totem-card produto-nuvem' + (pausado ? ' indisponivel' : '');
-            novoCard.setAttribute('data-firebase-id', idKey);
-            
-            let ingredientesArray = desc ? desc.split(',').map(i => i.trim()) : ["Bife", "Queijo", "Ovo"];
-            let ingredientesStr = JSON.stringify(ingredientesArray).replace(/"/g, '&quot;');
-            
-            let botoesAcao = `<button class="btn-totem" onclick="abrirTotemLanche('${nome}', ${precoG}, ${ingredientesStr}, '${img}')">🛠️ Pedir (R$ ${precoG.toFixed(2).replace('.', ',')})</button>`;
-            if(precoM > 0) {
-                botoesAcao = `
-                    <button class="btn-totem" onclick="abrirTotemLanche('${nome} (Grande)', ${precoG}, ${ingredientesStr}, '${img}')">🛠️ Grande (R$ ${precoG.toFixed(2).replace('.', ',')})</button>
-                    <button class="btn-totem" onclick="abrirTotemLanche('${nome} (Mini)', ${precoM}, ${ingredientesStr}, '${img}')">🛠️ Mini (R$ ${precoM.toFixed(2).replace('.', ',')})</button>
-                `;
-            }
-
-            let precoTexto = precoM > 0 ? `Grande: R$ ${precoG.toFixed(2)} | Mini: R$ ${precoM.toFixed(2)}` : `Valor: R$ ${precoG.toFixed(2)}`;
-
-            novoCard.innerHTML = `
-                <img src="${img}" class="totem-img" alt="${nome}">
-                <div class="totem-content">
-                    <div class="totem-info">
-                        <h3>${nome}</h3>
-                        <p>${desc}</p>
-                        <div class="totem-preco">${precoTexto}</div>
-                    </div>
-                    <div class="totem-actions">
-                        ${botoesAcao}
-                    </div>
-                </div>
-            `;
-            
-            if (document.body.classList.contains('modo-lojista-ativo')) {
-                let divAdmin = document.createElement('div');
-                divAdmin.className = 'admin-controls';
-                divAdmin.innerHTML = `
-                    <button class="btn-admin" onclick="alterarFotoCard(this)">🖼️ Foto</button>
-                    <button class="btn-admin" onclick="alterarDadosCard(this)">✏️ Editar Preço/Nome</button>
-                    <button class="btn-admin" onclick="alternarPausaCard(this)" style="background:#b45309;">🚫 Pausar</button>
-                    <button class="btn-admin" onclick="excluirProdutoCard(this)" style="background:#dc2626;">🗑️ Excluir</button>
-                `;
-                novoCard.querySelector('.totem-content').appendChild(divAdmin);
-            }
-
-            catDiv.appendChild(novoCard);
         }
     </script>
 </body>
