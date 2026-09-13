@@ -1547,7 +1547,6 @@
             let urlWp = `https://api.whatsapp.com/send?phone=${foneLoja}&text=` + encodeURIComponent(mensagem);
             window.open(urlWp, '_blank');
         }
-
         function tentarAtivarModoLojista() {
             let btn = document.getElementById('btnModoLojista');
             if(document.body.classList.contains('modo-lojista-ativo')) {
@@ -1555,6 +1554,7 @@
                 document.getElementById('painelCriarProduto').style.display = 'none';
                 btn.classList.remove('ativo');
                 btn.innerText = "🔑 Lojista";
+                location.reload();
             } else {
                 document.getElementById('modalSenhaLojista').style.display = 'flex';
             }
@@ -1603,8 +1603,8 @@
             
             let novoTitulo = prompt("Novo Nome do Produto:");
             let novaDesc = prompt("Nova Descrição / Ingredientes:");
-            let novoPrecoG = prompt("Novo Preço GRANDE (ou único) - Apenas números ex: 30.00:");
-            let novoPrecoM = prompt("Novo Preço MINI (Deixe em branco se não tiver):", "");
+            let novoPrecoG = prompt("Novo Preço GRANDE (Apenas números ex: 30.00):");
+            let novoPrecoM = prompt("Novo Preço MINI (Deixe em branco ou 0 se não tiver):", "");
 
             if (!idKey || !db) return;
 
@@ -1615,7 +1615,7 @@
             let valG = parseFloat(novoPrecoG);
             let valM = parseFloat(novoPrecoM);
 
-            if (!isNaN(valG)) dadosUpdate.precoG = valG;
+            if (!isNaN(valG) && valG > 0) dadosUpdate.precoG = valG;
             if (!isNaN(valM) && valM > 0) {
                 dadosUpdate.precoM = valM;
             } else {
@@ -1623,19 +1623,31 @@
             }
 
             db.ref('produtos/' + idKey).update(dadosUpdate).then(() => {
-                alert("Preços e dados atualizados na nuvem com sucesso!");
+                alert("Preço Grande e Mini atualizados e salvos na nuvem com sucesso!");
             });
         }
 
         function alternarPausaCard(btn) {
             let card = btn.closest('.totem-card');
             let idKey = card.getAttribute('data-firebase-id');
-            let estahPausado = card.classList.contains('indisponivel');
-            
+            let jaPausado = card.classList.contains('indisponivel');
+            let novoEstadoPausa = !jaPausado;
+
             if (idKey && db) {
-                db.ref('produtos/' + idKey).update({ pausado: !estahPausado }).then(() => {
-                    alert(!estahPausado ? "Produto pausado na nuvem!" : "Produto reativado!");
+                // Atualiza de forma síncrona e direta no caminho exato do produto
+                db.ref('produtos/' + idKey).child('pausado').set(novoEstadoPausa).then(() => {
+                    if (novoEstadoPausa) {
+                        card.classList.add('indisponivel');
+                        alert("Produto pausado com sucesso na nuvem!");
+                    } else {
+                        card.classList.remove('indisponivel');
+                        alert("Produto reativado com sucesso!");
+                    }
+                }).catch((error) => {
+                    alert("Erro ao pausar no Firebase: " + error.message);
                 });
+            } else {
+                alert("Erro: ID do produto não encontrado.");
             }
         }
 
@@ -1643,12 +1655,16 @@
             let card = btn.closest('.totem-card');
             let idKey = card.getAttribute('data-firebase-id');
             
-            if (confirm("Tem certeza que deseja excluir este produto do cardápio?")) {
+            if (confirm("Tem certeza absoluta que deseja excluir este produto do banco de dados?")) {
                 if (idKey && db) {
                     db.ref('produtos/' + idKey).remove().then(() => {
                         card.remove();
-                        alert("Produto excluído do banco de dados!");
+                        alert("Produto excluído do banco de dados e removido da tela!");
+                    }).catch((error) => {
+                        alert("Erro ao excluir no Firebase: " + error.message);
                     });
+                } else {
+                    alert("Erro: ID do produto não encontrado.");
                 }
             }
         }
