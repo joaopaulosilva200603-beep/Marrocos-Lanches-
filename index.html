@@ -1251,7 +1251,7 @@
         </div>
     </div>
     </dov>
-        <script>
+    <script>
         const firebaseConfig = {
             apiKey: "AIzaSyAbYlLMcr-1hUPL60oKBzT5af2SMOJ2-uw",
             authDomain: "marrocos-lanches.firebaseapp.com",
@@ -1329,7 +1329,7 @@
                     let htmlCat = `<div class="category-title" style="margin-top:25px;">${cat}</div>`;
                     
                     produtosPorCategoria[cat].forEach(p => {
-                        let classePausado = p.pausado ? ' indisponivel' : '';
+                        let classePausado = (p.pausado === true || p.pausado === "true") ? ' indisponivel' : '';
                         let ingredientesArray = p.desc ? p.desc.split(',').map(i => i.trim()) : ["Bife", "Queijo"];
                         let ingredientesStr = JSON.stringify(ingredientesArray).replace(/"/g, '&quot;');
                         
@@ -1547,6 +1547,7 @@
             let urlWp = `https://api.whatsapp.com/send?phone=${foneLoja}&text=` + encodeURIComponent(mensagem);
             window.open(urlWp, '_blank');
         }
+
         function tentarAtivarModoLojista() {
             let btn = document.getElementById('btnModoLojista');
             if(document.body.classList.contains('modo-lojista-ativo')) {
@@ -1633,7 +1634,7 @@
             
             if (idKey && db) {
                 db.ref('produtos/' + idKey).update({ pausado: !estahPausado }).then(() => {
-                    alert(!estahPausado ? "Produto pausado (esgotado) na nuvem!" : "Produto reativado!");
+                    alert(!estahPausado ? "Produto pausado na nuvem!" : "Produto reativado!");
                 });
             }
         }
